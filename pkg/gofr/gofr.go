@@ -324,7 +324,7 @@ func (a *App) initTracer() {
 			a.container.Log("Exporting traces to zipkin.")
 
 			exporter, err = zipkin.New(
-				fmt.Sprintf("http://%s:%s/api/v2/spans", tracerHost, tracerPort),
+				fmt.Sprintf("%v", tracerHost),
 			)
 		case traceExporterGoFr:
 			exporter = NewExporter("https://tracer-api.gofr.dev/api/spans", logging.NewLogger(logging.INFO))
