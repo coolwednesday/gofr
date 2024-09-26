@@ -68,7 +68,7 @@ func New() *App {
 	app.readConfig(false)
 	app.container = container.NewContainer(app.Config)
 
-	//app.initTracer()
+	app.initTracer()
 
 	// Metrics Server
 	port, err := strconv.Atoi(app.Config.Get("METRICS_PORT"))
