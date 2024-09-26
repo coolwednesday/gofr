@@ -27,7 +27,7 @@ func newHTTPServer(c *container.Container, port int, middlewareConfigs map[strin
 
 	r.Use(
 		middleware.WSHandlerUpgrade(c, wsManager),
-		middleware.Tracer,
+		//middleware.Tracer,
 		middleware.Logging(c.Logger),
 		middleware.CORS(middlewareConfigs, r.RegisteredRoutes),
 		middleware.Metrics(c.Metrics()),

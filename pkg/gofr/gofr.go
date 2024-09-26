@@ -68,7 +68,7 @@ func New() *App {
 	app.readConfig(false)
 	app.container = container.NewContainer(app.Config)
 
-	app.initTracer()
+	//app.initTracer()
 
 	// Metrics Server
 	port, err := strconv.Atoi(app.Config.Get("METRICS_PORT"))
@@ -119,7 +119,7 @@ func NewCMD() *App {
 	app.container.Logger = logging.NewFileLogger(app.Config.Get("CMD_LOGS_FILE"))
 	app.cmd = &cmd{}
 	app.container.Create(app.Config)
-	app.initTracer()
+	//app.initTracer()
 
 	return app
 }
@@ -383,16 +383,6 @@ func (a *App) Migrate(migrationsMap map[int64]migration.Migrate) {
 }
 
 func (a *App) initTracer() {
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String(a.container.GetAppName()),
-		)),
-	)
-	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
-	otel.SetErrorHandler(&otelErrorHandler{logger: a.container.Logger})
-
 	traceExporter := a.Config.Get("TRACE_EXPORTER")
 	tracerURL := a.Config.Get("TRACER_URL")
 
@@ -403,6 +393,16 @@ func (a *App) initTracer() {
 	if !isValidConfig(a.Logger(), traceExporter, tracerURL, tracerHost, tracerPort) {
 		return
 	}
+
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String(a.container.GetAppName()),
+		)),
+	)
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+	otel.SetErrorHandler(&otelErrorHandler{logger: a.container.Logger})
 
 	exporter, err := a.getExporter(traceExporter, tracerHost, tracerPort, tracerURL)
 
