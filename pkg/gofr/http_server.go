@@ -25,7 +25,7 @@ func newHTTPServer(c *container.Container, port int, middlewareConfigs map[strin
 	r := gofrHTTP.NewRouter()
 	wsManager := websocket.New()
 
-	r.Use(
+	r.UseMiddleware(
 		middleware.WSHandlerUpgrade(c, wsManager),
 		middleware.Tracer,
 		middleware.Logging(c.Logger),
@@ -54,12 +54,12 @@ func newHTTPServer(c *container.Container, port int, middlewareConfigs map[strin
 // such as command-line arguments, memory profiles, symbol information, and
 // execution traces.
 func (s *httpServer) RegisterProfilingRoutes() {
-	s.router.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	s.router.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	s.router.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	s.router.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	s.router.HandlerFunc(http.MethodGet, "/debug/pprof/cmdline", pprof.Cmdline)
+	s.router.HandlerFunc(http.MethodGet, "/debug/pprof/profile", pprof.Profile)
+	s.router.HandlerFunc(http.MethodGet, "/debug/pprof/symbol", pprof.Symbol)
+	s.router.HandlerFunc(http.MethodGet, "/debug/pprof/trace", pprof.Trace)
 
-	s.router.NewRoute().Methods(http.MethodGet).PathPrefix("/debug/pprof/").HandlerFunc(pprof.Index)
+	s.router.HandlerFunc(http.MethodGet, "/debug/pprof/*any", pprof.Index)
 }
 
 func (s *httpServer) Run(c *container.Container) {

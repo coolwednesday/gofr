@@ -1,51 +1,52 @@
 package http
 
 import (
+	"github.com/julienschmidt/httprouter"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/gorilla/mux"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // Router is responsible for routing HTTP request.
 type Router struct {
-	mux.Router
+	*httprouter.Router
 	RegisteredRoutes *[]string
+	middlewares      []Middleware
 }
 
 type Middleware func(handler http.Handler) http.Handler
 
 // NewRouter creates a new Router instance.
 func NewRouter() *Router {
-	muxRouter := mux.NewRouter().StrictSlash(false)
+	httpRouter := httprouter.New()
+	httpRouter.RedirectTrailingSlash = false
 	routes := make([]string, 0)
 	r := &Router{
-		Router:           *muxRouter,
+		Router:           httpRouter,
 		RegisteredRoutes: &routes,
+		middlewares:      []Middleware{},
 	}
 
-	r.Router = *muxRouter
+	r.Router = httpRouter
 
 	return r
 }
 
 // Add adds a new route with the given HTTP method, pattern, and handler, wrapping the handler with OpenTelemetry instrumentation.
 func (rou *Router) Add(method, pattern string, handler http.Handler) {
+	// Wrap the handler with all middlewares
+	for _, mw := range rou.middlewares {
+		handler = mw(handler)
+	}
 	h := otelhttp.NewHandler(handler, "gofr-router")
-	rou.Router.NewRoute().Methods(method).Path(pattern).Handler(h)
+	rou.Router.Handler(method, pattern, h)
 }
 
-// UseMiddleware registers middlewares to the router.
 func (rou *Router) UseMiddleware(mws ...Middleware) {
-	middlewares := make([]mux.MiddlewareFunc, 0, len(mws))
-	for _, m := range mws {
-		middlewares = append(middlewares, mux.MiddlewareFunc(m))
-	}
-
-	rou.Use(middlewares...)
+	rou.middlewares = append(rou.middlewares, mws...)
 }
 
 type staticFileConfig struct {
@@ -56,7 +57,11 @@ func (rou *Router) AddStaticFiles(endpoint, dirName string) {
 	cfg := staticFileConfig{directoryName: dirName}
 
 	fileServer := http.FileServer(http.Dir(cfg.directoryName))
-	rou.Router.NewRoute().PathPrefix(endpoint + "/").Handler(http.StripPrefix(endpoint, cfg.staticHandler(fileServer)))
+	rou.Router.HandlerFunc(http.MethodGet, endpoint+"/*filepath", func(w http.ResponseWriter, r *http.Request) {
+		// Strip the prefix and serve static files
+		http.StripPrefix(endpoint, fileServer).ServeHTTP(w, r)
+	})
+	//rou.Router.NewRoute().PathPrefix(endpoint + "/").Handler(http.StripPrefix(endpoint, cfg.staticHandler(fileServer)))
 }
 
 func (staticConfig staticFileConfig) staticHandler(fileServer http.Handler) http.Handler {

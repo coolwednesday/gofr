@@ -14,7 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/mux"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/zipkin"
@@ -245,23 +244,23 @@ func (a *App) httpServerSetup() {
 		}
 	}
 
-	a.httpServer.router.PathPrefix("/").Handler(handler{
-		function:  catchAllHandler,
-		container: a.container,
-	})
+	//a.httpServer.router.PathPrefix("/").Handler(handler{
+	//	function:  http.NotFoundHandler,
+	//	container: a.container,
+	//})
 
 	var registeredMethods []string
 
-	_ = a.httpServer.router.Walk(func(route *mux.Route, _ *mux.Router, _ []*mux.Route) error {
-		met, _ := route.GetMethods()
-		for _, method := range met {
-			if !contains(registeredMethods, method) { // Check for uniqueness before adding
-				registeredMethods = append(registeredMethods, method)
-			}
-		}
-
-		return nil
-	})
+	//_ = a.httpServer.router.Walk(func(route *mux.Route, _ *mux.Router, _ []*mux.Route) error {
+	//	met, _ := route.GetMethods()
+	//	for _, method := range met {
+	//		if !contains(registeredMethods, method) { // Check for uniqueness before adding
+	//			registeredMethods = append(registeredMethods, method)
+	//		}
+	//	}
+	//
+	//	return nil
+	//})
 
 	*a.httpServer.router.RegisteredRoutes = registeredMethods
 }
@@ -532,13 +531,13 @@ func (a *App) EnableBasicAuth(credentials ...string) {
 		users[credentials[i]] = credentials[i+1]
 	}
 
-	a.httpServer.router.Use(middleware.BasicAuthMiddleware(middleware.BasicAuthProvider{Users: users}))
+	a.httpServer.router.UseMiddleware(middleware.BasicAuthMiddleware(middleware.BasicAuthProvider{Users: users}))
 }
 
 // Deprecated: EnableBasicAuthWithFunc is deprecated and will be removed in future releases, users must use
 // EnableBasicAuthWithValidator as it has access to application datasources.
 func (a *App) EnableBasicAuthWithFunc(validateFunc func(username, password string) bool) {
-	a.httpServer.router.Use(middleware.BasicAuthMiddleware(middleware.BasicAuthProvider{ValidateFunc: validateFunc, Container: a.container}))
+	a.httpServer.router.UseMiddleware(middleware.BasicAuthMiddleware(middleware.BasicAuthProvider{ValidateFunc: validateFunc, Container: a.container}))
 }
 
 // EnableBasicAuthWithValidator enables basic authentication for the HTTP server with a custom validator.
@@ -546,7 +545,7 @@ func (a *App) EnableBasicAuthWithFunc(validateFunc func(username, password strin
 // The provided `validateFunc` is invoked for each authentication attempt. It receives a container instance,
 // username, and password. The function should return `true` if the credentials are valid, `false` otherwise.
 func (a *App) EnableBasicAuthWithValidator(validateFunc func(c *container.Container, username, password string) bool) {
-	a.httpServer.router.Use(middleware.BasicAuthMiddleware(middleware.BasicAuthProvider{
+	a.httpServer.router.UseMiddleware(middleware.BasicAuthMiddleware(middleware.BasicAuthProvider{
 		ValidateFuncWithDatasources: validateFunc, Container: a.container}))
 }
 
@@ -554,13 +553,13 @@ func (a *App) EnableBasicAuthWithValidator(validateFunc func(c *container.Contai
 //
 // It requires at least one API key to be provided. The provided API keys will be used to authenticate requests.
 func (a *App) EnableAPIKeyAuth(apiKeys ...string) {
-	a.httpServer.router.Use(middleware.APIKeyAuthMiddleware(middleware.APIKeyAuthProvider{}, apiKeys...))
+	a.httpServer.router.UseMiddleware(middleware.APIKeyAuthMiddleware(middleware.APIKeyAuthProvider{}, apiKeys...))
 }
 
 // Deprecated: EnableAPIKeyAuthWithFunc is deprecated and will be removed in future releases, users must use
 // EnableAPIKeyAuthWithValidator as it has access to application datasources.
 func (a *App) EnableAPIKeyAuthWithFunc(validateFunc func(apiKey string) bool) {
-	a.httpServer.router.Use(middleware.APIKeyAuthMiddleware(middleware.APIKeyAuthProvider{
+	a.httpServer.router.UseMiddleware(middleware.APIKeyAuthMiddleware(middleware.APIKeyAuthProvider{
 		ValidateFunc: validateFunc,
 		Container:    a.container,
 	}))
@@ -571,7 +570,7 @@ func (a *App) EnableAPIKeyAuthWithFunc(validateFunc func(apiKey string) bool) {
 // The provided `validateFunc` is used to determine the validity of an API key. It receives the request container
 // and the API key as arguments and should return `true` if the key is valid, `false` otherwise.
 func (a *App) EnableAPIKeyAuthWithValidator(validateFunc func(c *container.Container, apiKey string) bool) {
-	a.httpServer.router.Use(middleware.APIKeyAuthMiddleware(middleware.APIKeyAuthProvider{
+	a.httpServer.router.UseMiddleware(middleware.APIKeyAuthMiddleware(middleware.APIKeyAuthProvider{
 		ValidateFuncWithDatasources: validateFunc,
 		Container:                   a.container,
 	}))
@@ -592,7 +591,7 @@ func (a *App) EnableOAuth(jwksEndpoint string, refreshInterval int) {
 		RefreshInterval: time.Second * time.Duration(refreshInterval),
 	}
 
-	a.httpServer.router.Use(middleware.OAuth(middleware.NewOAuth(oauthOption)))
+	a.httpServer.router.UseMiddleware(middleware.OAuth(middleware.NewOAuth(oauthOption)))
 }
 
 // Subscribe registers a handler for the given topic.

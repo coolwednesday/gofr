@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
 type metrics interface {
@@ -25,7 +23,7 @@ func Metrics(metrics metrics) func(inner http.Handler) http.Handler {
 
 			srw := &StatusResponseWriter{ResponseWriter: w}
 
-			path, _ := mux.CurrentRoute(r).GetPathTemplate()
+			path := r.URL.Path
 			path = strings.TrimSuffix(path, "/")
 
 			// this has to be called in the end so that status code is populated
