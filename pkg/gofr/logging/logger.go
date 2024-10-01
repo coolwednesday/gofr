@@ -43,6 +43,7 @@ type logger struct {
 	errorOut   io.Writer
 	isTerminal bool
 	lock       chan struct{}
+	logChan    chan logEntry // Channel for logging messages
 }
 
 type logEntry struct {
@@ -55,11 +56,6 @@ type logEntry struct {
 func (l *logger) logf(level Level, format string, args ...interface{}) {
 	if level < l.level {
 		return
-	}
-
-	out := l.normalOut
-	if level >= ERROR {
-		out = l.errorOut
 	}
 
 	entry := logEntry{
@@ -77,10 +73,23 @@ func (l *logger) logf(level Level, format string, args ...interface{}) {
 		entry.Message = fmt.Sprintf(format+"", args...) // TODO - this is stupid. We should not need empty string.
 	}
 
-	if l.isTerminal {
-		l.prettyPrint(entry, out)
-	} else {
-		_ = json.NewEncoder(out).Encode(entry)
+	// Send log entry to the channel for processing
+	l.logChan <- entry
+}
+
+// Logging goroutine that processes log entries
+func (l *logger) logProcessor() {
+	for entry := range l.logChan {
+		out := l.normalOut
+		if entry.Level >= ERROR {
+			out = l.errorOut
+		}
+
+		if l.isTerminal {
+			l.prettyPrint(entry, out)
+		} else {
+			_ = json.NewEncoder(out).Encode(entry)
+		}
 	}
 }
 
@@ -176,11 +185,15 @@ func NewLogger(level Level) Logger {
 		normalOut: os.Stdout,
 		errorOut:  os.Stderr,
 		lock:      make(chan struct{}, 1),
+		logChan:   make(chan logEntry, 100),
 	}
 
 	l.level = level
 
 	l.isTerminal = checkIfTerminal(l.normalOut)
+
+	// Start the log processing goroutine
+	go l.logProcessor()
 
 	return l
 }
@@ -190,6 +203,7 @@ func NewFileLogger(path string) Logger {
 	l := &logger{
 		normalOut: io.Discard,
 		errorOut:  io.Discard,
+		logChan:   make(chan logEntry, 100),
 	}
 
 	if path == "" {
@@ -203,6 +217,9 @@ func NewFileLogger(path string) Logger {
 
 	l.normalOut = f
 	l.errorOut = f
+
+	// Start the log processing goroutine
+	go l.logProcessor()
 
 	return l
 }
@@ -218,4 +235,8 @@ func checkIfTerminal(w io.Writer) bool {
 
 func (l *logger) ChangeLevel(level Level) {
 	l.level = level
+}
+
+func (l *logger) Shutdown() {
+	close(l.logChan)
 }
