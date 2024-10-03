@@ -222,6 +222,8 @@ func (a *App) Shutdown(ctx context.Context) error {
 
 	a.container.Logger.Info("Application shutdown complete")
 
+	a.container.Logger.Close()
+
 	return err
 }
 

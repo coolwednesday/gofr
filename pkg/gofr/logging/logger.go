@@ -35,6 +35,7 @@ type Logger interface {
 	Fatal(args ...interface{})
 	Fatalf(format string, args ...interface{})
 	ChangeLevel(level Level)
+	Close()
 }
 
 type logger struct {
@@ -43,6 +44,7 @@ type logger struct {
 	errorOut   io.Writer
 	isTerminal bool
 	lock       chan struct{}
+	logChan    chan func() // Channel for logging messages
 }
 
 type logEntry struct {
@@ -57,11 +59,6 @@ func (l *logger) logf(level Level, format string, args ...interface{}) {
 		return
 	}
 
-	out := l.normalOut
-	if level >= ERROR {
-		out = l.errorOut
-	}
-
 	entry := logEntry{
 		Level:       level,
 		Time:        time.Now(),
@@ -74,7 +71,12 @@ func (l *logger) logf(level Level, format string, args ...interface{}) {
 	case len(args) != 1 && format == "":
 		entry.Message = args
 	case format != "":
-		entry.Message = fmt.Sprintf(format+"", args...) // TODO - this is stupid. We should not need empty string.
+		entry.Message = fmt.Sprintf(format+"", args...)
+	}
+
+	out := l.normalOut
+	if entry.Level >= ERROR {
+		out = l.errorOut
 	}
 
 	if l.isTerminal {
@@ -84,66 +86,101 @@ func (l *logger) logf(level Level, format string, args ...interface{}) {
 	}
 }
 
+func (l *logger) logProcessor() {
+	for logFunc := range l.logChan {
+		logFunc() // Execute the log function
+	}
+}
+
 func (l *logger) Debug(args ...interface{}) {
-	l.logf(DEBUG, "", args...)
+	l.logChan <- func() {
+		l.logf(DEBUG, "", args...)
+	}
+
 }
 
 func (l *logger) Debugf(format string, args ...interface{}) {
-	l.logf(DEBUG, format, args...)
+	l.logChan <- func() {
+		l.logf(DEBUG, format, args...)
+	}
 }
 
 func (l *logger) Info(args ...interface{}) {
-	l.logf(INFO, "", args...)
+	l.logChan <- func() {
+		l.logf(INFO, "", args...)
+	}
 }
 
 func (l *logger) Infof(format string, args ...interface{}) {
-	l.logf(INFO, format, args...)
+	l.logChan <- func() {
+		l.logf(INFO, format, args...)
+	}
 }
 
 func (l *logger) Notice(args ...interface{}) {
-	l.logf(NOTICE, "", args...)
+	l.logChan <- func() {
+		l.logf(NOTICE, "", args...)
+	}
 }
 
 func (l *logger) Noticef(format string, args ...interface{}) {
-	l.logf(NOTICE, format, args...)
+	l.logChan <- func() {
+		l.logf(NOTICE, format, args...)
+	}
 }
 
 func (l *logger) Warn(args ...interface{}) {
-	l.logf(WARN, "", args...)
+	l.logChan <- func() {
+		l.logf(WARN, "", args...)
+	}
 }
 
 func (l *logger) Warnf(format string, args ...interface{}) {
-	l.logf(WARN, format, args...)
+	l.logChan <- func() {
+		l.logf(WARN, format, args...)
+	}
 }
 
 func (l *logger) Log(args ...interface{}) {
-	l.logf(INFO, "", args...)
+	l.logChan <- func() {
+		l.logf(INFO, "", args...)
+	}
 }
 
 func (l *logger) Logf(format string, args ...interface{}) {
-	l.logf(INFO, format, args...)
+	l.logChan <- func() {
+		l.logf(INFO, format, args...)
+	}
 }
 
 func (l *logger) Error(args ...interface{}) {
-	l.logf(ERROR, "", args...)
+	l.logChan <- func() {
+		l.logf(ERROR, "", args...)
+	}
 }
 
 func (l *logger) Errorf(format string, args ...interface{}) {
-	l.logf(ERROR, format, args...)
+	l.logChan <- func() {
+		l.logf(ERROR, format, args...)
+	}
 }
 
 func (l *logger) Fatal(args ...interface{}) {
-	l.logf(FATAL, "", args...)
+	l.logChan <- func() {
+		l.logf(FATAL, "", args...)
 
-	//nolint:revive // exit status is 1 as it denotes failure as signified by Fatal log
-	os.Exit(1)
+		//nolint:revive // exit status is 1 as it denotes failure as signified by Fatal log
+		os.Exit(1)
+	}
 }
 
 func (l *logger) Fatalf(format string, args ...interface{}) {
-	l.logf(FATAL, format, args...)
+	l.logChan <- func() {
+		l.logf(FATAL, format, args...)
 
-	//nolint:revive // exit status is 1 as it denotes failure as signified by Fatal log
-	os.Exit(1)
+		//nolint:revive // exit status is 1 as it denotes failure as signified by Fatal log
+		os.Exit(1)
+	}
 }
 
 func (l *logger) prettyPrint(e logEntry, out io.Writer) {
@@ -176,11 +213,14 @@ func NewLogger(level Level) Logger {
 		normalOut: os.Stdout,
 		errorOut:  os.Stderr,
 		lock:      make(chan struct{}, 1),
+		logChan:   make(chan func(), 100), // Channel for log functions
 	}
 
 	l.level = level
-
 	l.isTerminal = checkIfTerminal(l.normalOut)
+
+	// Start the log processing goroutine
+	go l.logProcessor()
 
 	return l
 }
@@ -190,6 +230,7 @@ func NewFileLogger(path string) Logger {
 	l := &logger{
 		normalOut: io.Discard,
 		errorOut:  io.Discard,
+		logChan:   make(chan func(), 100),
 	}
 
 	if path == "" {
@@ -203,6 +244,9 @@ func NewFileLogger(path string) Logger {
 
 	l.normalOut = f
 	l.errorOut = f
+
+	// Start the log processing goroutine
+	go l.logProcessor()
 
 	return l
 }
@@ -218,4 +262,8 @@ func checkIfTerminal(w io.Writer) bool {
 
 func (l *logger) ChangeLevel(level Level) {
 	l.level = level
+}
+
+func (l *logger) Close() {
+	close(l.logChan)
 }

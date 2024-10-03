@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime"
 	"sync"
 	"time"
 
@@ -39,6 +40,7 @@ func HelloHandler(c *gofr.Context) (interface{}, error) {
 		name = "World"
 	}
 
+	fmt.Println("Number of goroutines:", runtime.NumGoroutine())
 	return fmt.Sprintf("Hello %s!", name), nil
 }
 
