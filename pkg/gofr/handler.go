@@ -76,7 +76,7 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		defer func() {
-			panicRecoveryHandler(recover(), h.container, panicked)
+			panicRecoveryHandler(recover(), h.container.Logger, panicked)
 		}()
 		// Execute the handler function
 		result, err = h.function(c)

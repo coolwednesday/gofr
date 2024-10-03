@@ -252,6 +252,9 @@ func TestPrettyPrint(t *testing.T) {
 
 func BenchmarkLogger_Debug(b *testing.B) {
 	logger := NewLogger(INFO)
+
+	b.ReportAllocs()
+	
 	for i := 0; i < b.N; i++ {
 		logger.Debug("Test Debug Log")
 	}

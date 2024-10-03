@@ -44,7 +44,7 @@ type logger struct {
 	errorOut   io.Writer
 	isTerminal bool
 	lock       chan struct{}
-	logChan    chan func() // Channel for logging messages
+	logChan    chan logEntry // Channel for logging messages
 }
 
 type logEntry struct {
@@ -71,116 +71,89 @@ func (l *logger) logf(level Level, format string, args ...interface{}) {
 	case len(args) != 1 && format == "":
 		entry.Message = args
 	case format != "":
-		entry.Message = fmt.Sprintf(format+"", args...)
+		entry.Message = fmt.Sprintf(format+"", args...) // TODO - this is stupid. We should not need empty string.
 	}
 
-	out := l.normalOut
-	if entry.Level >= ERROR {
-		out = l.errorOut
-	}
-
-	if l.isTerminal {
-		l.prettyPrint(entry, out)
-	} else {
-		_ = json.NewEncoder(out).Encode(entry)
-	}
+	// Send log entry to the channel for processing
+	l.logChan <- entry
 }
 
+// Logging goroutine that processes log entries
 func (l *logger) logProcessor() {
-	for logFunc := range l.logChan {
-		logFunc() // Execute the log function
+	for entry := range l.logChan {
+		out := l.normalOut
+		if entry.Level >= ERROR {
+			out = l.errorOut
+		}
+
+		if l.isTerminal {
+			l.prettyPrint(entry, out)
+		} else {
+			_ = json.NewEncoder(out).Encode(entry)
+		}
 	}
 }
 
 func (l *logger) Debug(args ...interface{}) {
-	l.logChan <- func() {
-		l.logf(DEBUG, "", args...)
-	}
-
+	l.logf(DEBUG, "", args...)
 }
 
 func (l *logger) Debugf(format string, args ...interface{}) {
-	l.logChan <- func() {
-		l.logf(DEBUG, format, args...)
-	}
+	l.logf(DEBUG, format, args...)
 }
 
 func (l *logger) Info(args ...interface{}) {
-	l.logChan <- func() {
-		l.logf(INFO, "", args...)
-	}
+	l.logf(INFO, "", args...)
 }
 
 func (l *logger) Infof(format string, args ...interface{}) {
-	l.logChan <- func() {
-		l.logf(INFO, format, args...)
-	}
+	l.logf(INFO, format, args...)
 }
 
 func (l *logger) Notice(args ...interface{}) {
-	l.logChan <- func() {
-		l.logf(NOTICE, "", args...)
-	}
+	l.logf(NOTICE, "", args...)
 }
 
 func (l *logger) Noticef(format string, args ...interface{}) {
-	l.logChan <- func() {
-		l.logf(NOTICE, format, args...)
-	}
+	l.logf(NOTICE, format, args...)
 }
 
 func (l *logger) Warn(args ...interface{}) {
-	l.logChan <- func() {
-		l.logf(WARN, "", args...)
-	}
+	l.logf(WARN, "", args...)
 }
 
 func (l *logger) Warnf(format string, args ...interface{}) {
-	l.logChan <- func() {
-		l.logf(WARN, format, args...)
-	}
+	l.logf(WARN, format, args...)
 }
 
 func (l *logger) Log(args ...interface{}) {
-	l.logChan <- func() {
-		l.logf(INFO, "", args...)
-	}
+	l.logf(INFO, "", args...)
 }
 
 func (l *logger) Logf(format string, args ...interface{}) {
-	l.logChan <- func() {
-		l.logf(INFO, format, args...)
-	}
+	l.logf(INFO, format, args...)
 }
 
 func (l *logger) Error(args ...interface{}) {
-	l.logChan <- func() {
-		l.logf(ERROR, "", args...)
-	}
+	l.logf(ERROR, "", args...)
 }
 
 func (l *logger) Errorf(format string, args ...interface{}) {
-	l.logChan <- func() {
-		l.logf(ERROR, format, args...)
-	}
+	l.logf(ERROR, format, args...)
 }
 
 func (l *logger) Fatal(args ...interface{}) {
-	l.logChan <- func() {
-		l.logf(FATAL, "", args...)
+	l.logf(FATAL, "", args...)
 
-		//nolint:revive // exit status is 1 as it denotes failure as signified by Fatal log
-		os.Exit(1)
-	}
+	//nolint:revive // exit status is 1 as it denotes failure as signified by Fatal log
+	os.Exit(1)
 }
 
 func (l *logger) Fatalf(format string, args ...interface{}) {
-	l.logChan <- func() {
-		l.logf(FATAL, format, args...)
+	l.logf(FATAL, format, args...)
 
-		//nolint:revive // exit status is 1 as it denotes failure as signified by Fatal log
-		os.Exit(1)
-	}
+	//nolint:revive // exit status is 1 as it denotes failure as signified by Fatal log
+	os.Exit(1)
 }
 
 func (l *logger) prettyPrint(e logEntry, out io.Writer) {
@@ -213,10 +186,12 @@ func NewLogger(level Level) Logger {
 		normalOut: os.Stdout,
 		errorOut:  os.Stderr,
 		lock:      make(chan struct{}, 1),
-		logChan:   make(chan func(), 100), // Channel for log functions
+		// this needs to be set dynamic based on the load that the server is experiencing
+		logChan: make(chan logEntry, 2400000),
 	}
 
 	l.level = level
+
 	l.isTerminal = checkIfTerminal(l.normalOut)
 
 	// Start the log processing goroutine
@@ -230,7 +205,8 @@ func NewFileLogger(path string) Logger {
 	l := &logger{
 		normalOut: io.Discard,
 		errorOut:  io.Discard,
-		logChan:   make(chan func(), 100),
+		// this needs to be set dynamic based on the load that the server is experiencing
+		logChan: make(chan logEntry, 2400000),
 	}
 
 	if path == "" {
