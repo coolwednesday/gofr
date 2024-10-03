@@ -249,3 +249,10 @@ func TestPrettyPrint(t *testing.T) {
 		assert.Contains(t, outputLog, v)
 	}
 }
+
+func BenchmarkLogger_Debug(b *testing.B) {
+	logger := NewLogger(INFO)
+	for i := 0; i < b.N; i++ {
+		logger.Debug("Benchmarking log message")
+	}
+}

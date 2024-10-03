@@ -39,7 +39,7 @@ func HelloHandler(c *gofr.Context) (interface{}, error) {
 		c.Log("Name came empty")
 		name = "World"
 	}
-	
+
 	fmt.Println("Number of goroutines:", runtime.NumGoroutine())
 	return fmt.Sprintf("Hello %s!", name), nil
 }
