@@ -103,3 +103,5 @@ func (m *MockLogger) Logf(format string, args ...interface{}) {
 func (m *MockLogger) ChangeLevel(level Level) {
 	m.level = level
 }
+
+func (m *MockLogger) Close() {}

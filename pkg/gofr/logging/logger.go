@@ -35,6 +35,7 @@ type Logger interface {
 	Fatal(args ...interface{})
 	Fatalf(format string, args ...interface{})
 	ChangeLevel(level Level)
+	Close()
 }
 
 type logger struct {
@@ -263,6 +264,6 @@ func (l *logger) ChangeLevel(level Level) {
 	l.level = level
 }
 
-func (l *logger) Shutdown() {
+func (l *logger) Close() {
 	close(l.logChan)
 }
