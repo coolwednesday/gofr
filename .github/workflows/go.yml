@@ -272,6 +272,12 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
+      - name: Install ls-lint
+        run: |
+          # Download the ls-lint binary
+          curl -sL https://github.com/loeffel-io/ls-lint/releases/latest/download/ls-lint-linux-x64 -o ls-lint
+          chmod +x ls-lint
+
       - name: Run lint checks in all Go module subdirectories
         run: |
           # Find all directories containing a go.mod file
@@ -280,6 +286,7 @@ jobs:
           # Iterate over each module directory and run ls-lint using the root config
           for dir in $MODULE_DIRS; do
             echo "Running lint check in $dir"
-            ls-lint/action@v2.2.3 --config .ls-lint.yml || exit 1
+            ./ls-lint --config ./.ls-lint.yml --path $dir || exit 1
           done
         shell: bash
+
