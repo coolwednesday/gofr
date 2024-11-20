@@ -125,10 +125,62 @@ jobs:
           name: PKG-Coverage-Report
           path: profile.cov
 
+  Submodule-Unit-Testing:
+    name: Submodule Unit Testing (v${{ matrix.go-version }})🛠
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [ '1.22', '1.21' ]
+
+    steps:
+      - name: Checkout code into go module directory
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+        id: Go
+
+      - name: Detect and Test Submodules
+        run: |
+          # Find all directories containing a go.mod file within 'pkg'
+          for module in $(find pkg -name "go.mod" -exec dirname {} \;); do
+            echo "Testing module: $module"
+            cd $module
+
+            # Download dependencies for the submodule
+            go mod download
+
+            # Run tests for the submodule
+            export APP_ENV=test
+            go test ./... -v -short -coverprofile=submodule.cov -coverpkg=./...
+
+            # Merge submodule coverage into a single file
+            grep -v '/mock_' submodule.cov >> ../../submodules_merged.cov
+
+            # Return to the root directory
+            cd -
+          done
+
+      - name: Parse and Print Submodule Coverage
+        run: |
+          go tool cover -func=submodules_merged.cov
+
+      - name: Upload Submodule Test Coverage
+        if: ${{ matrix.go-version == '1.22'}}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Submodule-Coverage-Report
+          path: submodules_merged.cov
+
+
   parse_coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
-    needs: [ Example-Unit-Testing,PKG-Unit-Testing]
+    needs: [ Example-Unit-Testing,PKG-Unit-Testing,Submodule-Unit-Testing]
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v4
@@ -193,11 +245,25 @@ jobs:
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v4
-      - name: Get dependencies
-        run: go get -v -t -d ./...
-      - name: GolangCI-Lint
+
+      - name: Get dependencies for root module
+        run: go mod download
+
+      - name: Lint Root Module
         run: |
+          echo "Linting root module..."
           golangci-lint run --timeout 9m0s
+
+      - name: Lint Submodules
+        run: |
+          echo "Searching for submodules..."
+          for module in $(find pkg -name "go.mod" -exec dirname {} \;); do
+            echo "Linting submodule: $module"
+            cd $module
+            go mod tidy  # Ensure dependencies are downloaded
+            golangci-lint run --timeout 9m0s
+            cd -
+          done
 
   linting_party:
     name: Linting Party🥳
