@@ -280,6 +280,6 @@ jobs:
           # Iterate over each module directory and run ls-lint using the root config
           for dir in $MODULE_DIRS; do
             echo "Running lint check in $dir"
-            ls-lint/action@v2.2.3 --config ./.ls-lint.yml --path $dir || exit 1
+            ls-lint/action@v2.2.3 --config .ls-lint.yml --path $dir || exit 1
           done
         shell: bash
