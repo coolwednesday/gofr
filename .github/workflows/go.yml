@@ -272,14 +272,14 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Find and run lint in Go modules
+      - name: Run lint check in all Go modules
         run: |
           # Find all directories containing a go.mod file
           MODULE_DIRS=$(find . -type f -name "go.mod" -exec dirname {} \;)
 
-          # Run ls-lint for each module directory
+          # Run ls-lint in each module directory
           for dir in $MODULE_DIRS; do
             echo "Running lint check in $dir"
-            ls-lint -c $dir/.ls-lint.yml || exit 1
+            ls-lint/action@v2.2.3 --config $dir/.ls-lint.yml || exit 1
           done
         shell: bash
