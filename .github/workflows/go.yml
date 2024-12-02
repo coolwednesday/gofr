@@ -288,3 +288,22 @@ jobs:
             golangci-lint run --timeout 9m0s
             cd -
           done
+
+  linting_party:
+    name: Linting Party 🥳
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Generate ls-lint Configuration Inline
+        run: |
+          echo "---" > .ls-lint.yml
+          echo "ls:" >> .ls-lint.yml
+          echo "  .go: snake_case" >> .ls-lint.yml
+          echo "  .pb.go: snake_case" >> .ls-lint.yml
+
+      - name: Check for file naming errors
+        uses: ls-lint/action@v2.2.3
+        with:
+          config: .ls-lint.yml
