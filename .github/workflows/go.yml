@@ -296,14 +296,24 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Generate ls-lint Configuration Inline
+      - name: Find and Lint Submodules
         run: |
-          echo "---" > .ls-lint.yml
-          echo "ls:" >> .ls-lint.yml
-          echo "  .go: snake_case" >> .ls-lint.yml
-          echo "  .pb.go: snake_case" >> .ls-lint.yml
-
-      - name: Check for file naming errors
-        uses: ls-lint/action@v2.2.3
-        with:
-          config: .ls-lint.yml
+          echo "Searching for submodules..."
+          for module in $(find . -type f -name "go.mod" -exec dirname {} \;); do
+            echo "Linting submodule: $module"
+          
+            # Navigate to the submodule directory
+            cd $module
+          
+            # Generate the ls-lint configuration dynamically
+            echo "---" > .ls-lint.yml
+            echo "ls:" >> .ls-lint.yml
+            echo "  .go: snake_case" >> .ls-lint.yml
+            echo "  .pb.go: snake_case" >> .ls-lint.yml
+          
+            # Run the ls-lint check
+            ls-lint --config .ls-lint.yml || exit 1
+          
+            # Navigate back to the root
+            cd -
+          done
