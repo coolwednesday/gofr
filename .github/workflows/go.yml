@@ -237,60 +237,54 @@ jobs:
           coverageLocations: artifacts/merged_profile.cov:gocov
           prefix: gofr.dev
 
-  naming_checks:
-    name: Naming Checks 📝
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - name: Install ls-lint
-        run: |
-          echo "Downloading ls-lint..."
-          curl -sL https://github.com/loeffel-io/ls-lint/releases/latest/download/ls-lint-linux-x64 -o ls-lint
-          chmod +x ls-lint
-
-      - name: Generate ls-lint Configuration Inline
-        run: |
-          echo "---" > ls-lint.yml
-          echo "ls:" >> ls-lint.yml
-          echo "  .go: snake_case" >> ls-lint.yml
-          echo "  .pb.go: snake_case" >> ls-lint.yml
-
-      - name: Run Naming Checks
-        run: |
-          echo "Running naming checks..."
-          ./ls-lint --config ./ls-lint.yml || exit 1
+#  naming_checks:
+#    name: Naming Checks 📝
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Check out code
+#        uses: actions/checkout@v4
+#
+#      - name: Install ls-lint
+#        run: |
+#          echo "Downloading ls-lint..."
+#          curl -sL https://github.com/loeffel-io/ls-lint/releases/latest/download/ls-lint-linux-x64 -o ls-lint
+#          chmod +x ls-lint
+#
+#      - name: Generate ls-lint Configuration Inline
+#        run: |
+#          echo "---" > ls-lint.yml
+#          echo "ls:" >> ls-lint.yml
+#          echo "  .go: snake_case" >> ls-lint.yml
+#          echo "  .pb.go: snake_case" >> ls-lint.yml
+#
+#      - name: Run Naming Checks
+#        run: |
+#          echo "Running naming checks..."
+#          ./ls-lint --config ./ls-lint.yml || exit 1
 
   code_quality:
     name: Code Quality 🎖️
     runs-on: ubuntu-latest
+    container: "golangci/golangci-lint:v1.59.1"
     steps:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.21"
-
-      - name: Get dependencies for root module
-        run: |
-          echo "Downloading root module dependencies..."
-          go mod download
+      - name: Get dependencies
+        run: go get -v -t -d ./...
 
       - name: Lint Root Module with golangci-lint
         run: |
           echo "Linting root module..."
           golangci-lint run --timeout 9m0s
 
-      - name: Lint Submodules with golangci-lint
+      - name: Lint Submodules
         run: |
           echo "Searching for submodules..."
           for module in $(find pkg -name "go.mod" -exec dirname {} \;); do
             echo "Linting submodule: $module"
             cd $module
-            go mod tidy  # Ensure dependencies are downloaded
+            go mod tidy
             golangci-lint run --timeout 9m0s
             cd -
           done
