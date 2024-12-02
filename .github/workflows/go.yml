@@ -289,31 +289,54 @@ jobs:
             cd -
           done
 
-  linting_party:
-    name: Linting Party 🥳
+#  linting_party:
+#    name: Linting Party 🥳
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Check out code
+#        uses: actions/checkout@v4
+#
+#      - name: Find and Lint Submodules
+#        uses: ls-lint/action@v2.2.3
+#        run: |
+#          echo "Searching for submodules..."
+#          for module in $(find . -type f -name "go.mod" -exec dirname {} \;); do
+#            echo "Linting submodule: $module"
+#
+#            # Navigate to the submodule directory
+#            cd $module
+#
+#            # Generate the ls-lint configuration dynamically
+#            echo "---" > .ls-lint.yml
+#            echo "ls:" >> .ls-lint.yml
+#            echo "  .go: snake_case" >> .ls-lint.yml
+#            echo "  .pb.go: snake_case" >> .ls-lint.yml
+#        with:
+#          config: .ls-lint.yml
+#            # Navigate back to the root
+#            cd -
+#          done
+  lint-submodules:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Find and Lint Submodules
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21' # Adjust as needed
+
+      - name: Lint Submodules
         run: |
-          echo "Searching for submodules..."
-          for module in $(find . -type f -name "go.mod" -exec dirname {} \;); do
-            echo "Linting submodule: $module"
-          
-            # Navigate to the submodule directory
-            cd $module
-          
-            # Generate the ls-lint configuration dynamically
+          find . -type f -name "go.mod" -exec dirname {} + | while read -r module; do
+            cd "$module"
+            lslint --config=.ls-lint.yml
+            cd ..
+          done
+          # Create a basic .ls-lint.yml file if it doesn't exist
+          if [ ! -f .ls-lint.yml ]; then
             echo "---" > .ls-lint.yml
             echo "ls:" >> .ls-lint.yml
             echo "  .go: snake_case" >> .ls-lint.yml
             echo "  .pb.go: snake_case" >> .ls-lint.yml
-          
-            # Run the ls-lint check
-            ls-lint --config .ls-lint.yml || exit 1
-          
-            # Navigate back to the root
-            cd -
-          done
+          fi
