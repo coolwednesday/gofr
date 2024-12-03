@@ -276,25 +276,27 @@ jobs:
         with:
           config: .ls-lint.yml
 
-      - name: Lint submodules for naming errors
+      - name: Find and Lint Submodules
         run: |
-          # Find all submodule directories containing a go.mod file
-          MODULE_DIRS=$(find . -type f -name "go.mod" -exec dirname {} \;)
+          echo "Searching for submodules..."
+          for module in $(find . -type f -name "go.mod" -exec dirname {} \;); do
+            echo "Linting submodule: $module"
 
-          # Iterate over each submodule directory
-          for dir in $MODULE_DIRS; do
-            echo "Checking naming conventions in submodule: $dir"
+            # Navigate to the submodule directory
+            cd $module
 
-            # Check out the code for the submodule (if needed)
-            git -C $dir pull origin main
+            # Ensure .ls-lint.yml is ignored
+            echo ".ls-lint.yml" >> .gitignore
 
-            # Generate ls-lint configuration for the submodule
-            echo "---" > $dir/.ls-lint.yml
-            echo "ls:" >> $dir/.ls-lint.yml
-            echo "  .go: snake_case" >> $dir/.ls-lint.yml
-            echo "  .pb.go: snake_case" >> $dir/.ls-lint.yml
+            # Generate the ls-lint configuration dynamically
+            echo "---" > .ls-lint.yml
+            echo "ls:" >> .ls-lint.yml
+            echo "  .go: snake_case" >> .ls-lint.yml
+            echo "  .pb.go: snake_case" >> .ls-lint.yml
 
-            # Run ls-lint for each submodule
-            echo "Running ls-lint in submodule: $dir"
-            ls-lint --config $dir/.ls-lint.yml || exit 1
+            # Run the ls-lint check
+            ls-lint --config .ls-lint.yml || exit 1
+
+            # Navigate back to the root
+            cd -
           done
