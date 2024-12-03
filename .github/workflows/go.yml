@@ -263,13 +263,38 @@ jobs:
             golangci-lint run --timeout 9m0s
             cd -
           done
+
   linting_party:
-    name: Linting Party🥳
+    name: Linting Party 🥳
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v4
-      - name: Check for file names errors
+
+      - name: Check for file naming errors in Root
         uses: ls-lint/action@v2.2.3
         with:
           config: .ls-lint.yml
+
+      - name: Lint submodules for naming errors
+        run: |
+          # Find all submodule directories containing a go.mod file
+          MODULE_DIRS=$(find . -type f -name "go.mod" -exec dirname {} \;)
+
+          # Iterate over each submodule directory
+          for dir in $MODULE_DIRS; do
+            echo "Checking naming conventions in submodule: $dir"
+
+            # Check out the code for the submodule (if needed)
+            git -C $dir pull origin main
+
+            # Generate ls-lint configuration for the submodule
+            echo "---" > $dir/.ls-lint.yml
+            echo "ls:" >> $dir/.ls-lint.yml
+            echo "  .go: snake_case" >> $dir/.ls-lint.yml
+            echo "  .pb.go: snake_case" >> $dir/.ls-lint.yml
+
+            # Run ls-lint for each submodule
+            echo "Running ls-lint in submodule: $dir"
+            ls-lint --config $dir/.ls-lint.yml || exit 1
+          done
