@@ -263,40 +263,13 @@ jobs:
             golangci-lint run --timeout 9m0s
             cd -
           done
-
   linting_party:
-    name: Linting Party 🥳
+    name: Linting Party🥳
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v4
-
-      - name: Check for file naming errors in Root
+      - name: Check for file names errors
         uses: ls-lint/action@v2.2.3
         with:
           config: .ls-lint.yml
-
-      - name: Find and Lint Submodules
-        run: |
-          echo "Searching for submodules..."
-          for module in $(find . -type f -name "go.mod" -exec dirname {} \;); do
-            echo "Linting submodule: $module"
-
-            # Navigate to the submodule directory
-            cd $module
-
-            # Ensure .ls-lint.yml is ignored
-            echo ".ls-lint.yml" >> .gitignore
-
-            # Generate the ls-lint configuration dynamically
-            echo "---" > .ls-lint.yml
-            echo "ls:" >> .ls-lint.yml
-            echo "  .go: snake_case" >> .ls-lint.yml
-            echo "  .pb.go: snake_case" >> .ls-lint.yml
-
-            # Run the ls-lint check
-            ls-lint --config .ls-lint.yml || exit 1
-
-            # Navigate back to the root
-            cd -
-          done
