@@ -97,6 +97,7 @@ func getDefaultClient(config *Config, logger Logger, metrics Metrics) *MQTT {
 
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(fmt.Sprintf("tcp://%s:%d", host, port))
+	opts.SetConnectTimeout(30 * time.Second)
 	opts.SetClientID(clientID)
 	opts.SetAutoReconnect(true)
 	opts.SetKeepAlive(config.KeepAlive)
