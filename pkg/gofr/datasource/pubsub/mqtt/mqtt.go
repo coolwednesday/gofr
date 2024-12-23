@@ -101,6 +101,16 @@ func getDefaultClient(config *Config, logger Logger, metrics Metrics) *MQTT {
 	opts.SetClientID(clientID)
 	opts.SetAutoReconnect(true)
 	opts.SetKeepAlive(config.KeepAlive)
+
+	// Set handlers for logging connection status
+	opts.SetOnConnectHandler(func(client mqtt.Client) {
+		logger.Infof("Successfully connected to MQTT broker at '%v:%v' with clientID '%v'", host, port, clientID)
+	})
+
+	opts.SetConnectionLostHandler(func(client mqtt.Client, err error) {
+		logger.Errorf("Connection lost to MQTT broker: %v", err)
+	})
+
 	client := mqtt.NewClient(opts)
 
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
