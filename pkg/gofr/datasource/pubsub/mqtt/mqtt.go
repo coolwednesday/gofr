@@ -100,6 +100,7 @@ func getDefaultClient(config *Config, logger Logger, metrics Metrics) *MQTT {
 	opts.SetClientID(clientID)
 	opts.SetAutoReconnect(true)
 	opts.SetKeepAlive(config.KeepAlive)
+
 	client := mqtt.NewClient(opts)
 
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
