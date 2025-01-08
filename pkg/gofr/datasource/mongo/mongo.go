@@ -158,8 +158,6 @@ func (c *Client) Find(ctx context.Context, collection string, filter, results in
 		return err
 	}
 
-	defer cur.Close(ctx)
-
 	if err := cur.All(ctx, results); err != nil {
 		return err
 	}
