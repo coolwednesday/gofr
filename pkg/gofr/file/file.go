@@ -4,7 +4,7 @@ type file struct {
 	name    string
 	content []byte
 	size    int64
-	IsDir   bool
+	isDir   bool
 }
 
 func (f file) GetName() string {
