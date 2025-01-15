@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -342,6 +345,59 @@ func (a *App) AddHTTPService(serviceName, serviceAddress string, options ...serv
 	}
 
 	a.container.Services[serviceName] = service.NewHTTPService(serviceAddress, a.container.Logger, a.container.Metrics(), options...)
+}
+
+func createGRPCConn(host string) (*grpc.ClientConn, error) {
+	conn, err := grpc.NewClient(host, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, err
+	}
+
+	return conn, nil
+}
+
+func (a *App) AddgRPCService(serviceName, serviceAddress, packageName string) {
+	if a.container.GRPCServices == nil {
+		a.container.GRPCServices = make(map[string]any)
+	}
+
+	if _, ok := a.container.GRPCServices[serviceName]; ok {
+		a.container.Debugf("Service already registered Name: %v", serviceName)
+	}
+
+	gRPCConn, err := createGRPCConn(serviceAddress)
+
+	if err != nil {
+		a.container.Errorf("Error adding gRPC service %v", serviceName)
+	}
+
+	methodName := fmt.Sprintf("New%sClient", serviceName)
+	method := reflect.ValueOf(packageName).MethodByName(methodName)
+
+	if !method.IsValid() {
+		fmt.Printf("Method %s not found in package %s\n", methodName, packageName)
+		return
+	}
+
+	results := method.Call([]reflect.Value{reflect.ValueOf(gRPCConn)})
+
+	if len(results) > 0 {
+		a.container.GRPCServices[serviceName] = results[0].Interface()
+		fmt.Printf("Service %s registered successfully.\n", serviceName)
+	} else {
+		fmt.Printf("Failed to create client for service %s\n", serviceName)
+	}
+}
+
+func GetgRPCService[T any](serviceName, packageName string, container container.Container) (T, error) {
+	// Retrieve the registered service
+	serv, exists := container.GRPCServices[serviceName]
+	if !exists {
+		return *new(T), fmt.Errorf("service %s not found", serviceName)
+	}
+
+	return serv.(T), nil
+
 }
 
 // GET adds a Handler for HTTP GET method for a route pattern.

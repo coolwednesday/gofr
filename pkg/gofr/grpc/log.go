@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"google.golang.org/grpc/metadata"
 	"io"
 	"math"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -57,29 +59,58 @@ func (l RPCLog) String() string {
 
 func LoggingInterceptor(logger Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		ctx, span := otel.GetTracerProvider().Tracer("gofr",
-			trace.WithInstrumentationVersion("v0.1")).Start(ctx, info.FullMethod)
+		// Retrieve metadata from the incoming context
+		md, ok := metadata.FromIncomingContext(ctx)
+		var parentSpanContext trace.SpanContext
+		var span trace.Span
+
+		if ok {
+			// Extract the serialized span context (if present) from metadata
+			spanContextStr := md.Get("parent-span-context")
+			if len(spanContextStr) > 0 {
+				parentSpanContext = spanContextFromString(spanContextStr[0])
+			}
+		}
+
+		// Check if a valid parent span context exists
+		if parentSpanContext.IsValid() {
+			// Create a new child span from the parent span context
+			tracectx := trace.ContextWithSpanContext(ctx, parentSpanContext)
+			ctx, span = otel.GetTracerProvider().
+				Tracer("gofr", trace.WithInstrumentationVersion("v0.1")).
+				Start(tracectx, info.FullMethod, trace.WithSpanKind(trace.SpanKindServer))
+		} else {
+			// Create a new root span
+			ctx, span = otel.GetTracerProvider().
+				Tracer("gofr", trace.WithInstrumentationVersion("v0.1")).
+				Start(ctx, info.FullMethod, trace.WithSpanKind(trace.SpanKindServer))
+
+			// Add the serialized span context to metadata for propagation
+			serializedSpanContext := spanContextToString(span.SpanContext())
+			md = metadata.Pairs("parent-span-context", serializedSpanContext)
+			ctx = metadata.NewOutgoingContext(ctx, md)
+		}
+
 		start := time.Now()
 
+		// Call the handler with the updated context
 		resp, err := handler(ctx, req)
 
+		// Defer the logging and span end
 		defer func() {
 			l := RPCLog{
-				ID:           trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
+				ID:           span.SpanContext().TraceID().String(),
 				StartTime:    start.Format("2006-01-02T15:04:05.999999999-07:00"),
 				ResponseTime: time.Since(start).Microseconds(),
 				Method:       info.FullMethod,
 			}
 
+			// Log the status code based on the error
 			if err != nil {
-				// Check if the error is a gRPC status error
 				if statusErr, ok := status.FromError(err); ok {
-					// You can access the gRPC status code here
-					//nolint:gosec // Conversion from uint32 to int32 is safe in this context because gRPC status codes are within the int32 range
 					l.StatusCode = int32(statusErr.Code())
 				}
 			} else {
-				// If there was no error, you can access the response status code here
 				l.StatusCode = int32(codes.OK)
 			}
 
@@ -87,9 +118,39 @@ func LoggingInterceptor(logger Logger) grpc.UnaryServerInterceptor {
 				logger.Info(l)
 			}
 
+			// End the span
 			span.End()
 		}()
 
 		return resp, err
 	}
+}
+
+// Helper function to serialize a SpanContext to a string
+func spanContextToString(sc trace.SpanContext) string {
+	return fmt.Sprintf("%s|%s", sc.TraceID().String(), sc.SpanID().String())
+}
+
+// Helper function to deserialize a SpanContext from a string
+func spanContextFromString(str string) trace.SpanContext {
+	parts := strings.Split(str, "|")
+	if len(parts) != 2 {
+		return trace.SpanContext{}
+	}
+
+	traceID, err := trace.TraceIDFromHex(parts[0])
+	if err != nil {
+		return trace.SpanContext{}
+	}
+
+	spanID, err := trace.SpanIDFromHex(parts[1])
+	if err != nil {
+		return trace.SpanContext{}
+	}
+
+	return trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID: traceID,
+		SpanID:  spanID,
+		Remote:  true,
+	})
 }
