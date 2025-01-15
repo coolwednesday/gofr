@@ -1,7 +1,6 @@
 package grpc
 
 import (
-	"fmt"
 	"gofr.dev/pkg/gofr"
 )
 
@@ -28,7 +27,14 @@ func (s *HelloGoFrServer) SayHello(ctx *gofr.Context) (any, error) {
 		name = "World"
 	}
 
-	return &HelloResponse{
-		Message: fmt.Sprintf("Hello %s!", name),
-	}, nil
+	conn, err := createGRPCConn("localhost:10000")
+	if err != nil {
+		return nil, err
+	}
+
+	service := NewHelloGoFrClient(conn)
+
+	res, err := service.SayHello(ctx, &request)
+
+	return res, err
 }

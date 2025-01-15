@@ -26,6 +26,9 @@ type HelloClient interface {
 	SayHello(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (*HelloResponse, error)
 }
 
+type Hello2Client interface {
+
+}
 type helloClient struct {
 	cc grpc.ClientConnInterface
 }

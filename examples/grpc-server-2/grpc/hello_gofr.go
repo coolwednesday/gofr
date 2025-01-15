@@ -22,6 +22,7 @@ type HelloServerWrapper struct {
 	Container *container.Container
 	server    HelloServerWithGofr
 }
+
 func (h *HelloServerWrapper) SayHello(ctx context.Context, req *HelloRequest) (*HelloResponse, error) {
 	gctx := h.GetGofrContext(ctx, &HelloRequestWrapper{ctx: ctx, HelloRequest: req})
 
@@ -39,6 +40,7 @@ func (h *HelloServerWrapper) SayHello(ctx context.Context, req *HelloRequest) (*
 	return resp, nil
 }
 
+
 func (h *HelloServerWrapper) mustEmbedUnimplementedHelloServer() {}
 
 func RegisterHelloServerWithGofr(s grpc.ServiceRegistrar, srv HelloServerWithGofr) {
@@ -53,6 +55,7 @@ func (h *HelloServerWrapper) GetGofrContext(ctx context.Context, req gofr.Reques
 		Request:   req,
 	}
 }
+
 type HelloRequestWrapper struct {
 	ctx context.Context
 	*HelloRequest

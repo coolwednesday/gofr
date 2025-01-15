@@ -1,7 +1,7 @@
 package main
 
 import (
-	"gofr.dev/examples/grpc-server/grpc"
+	"gofr.dev/examples/grpc-server-2/grpc"
 	"gofr.dev/pkg/gofr"
 )
 

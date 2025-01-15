@@ -47,6 +47,7 @@ type Container struct {
 	appVersion string
 
 	Services       map[string]service.HTTP
+	GRPCServices   map[string]any
 	metricsManager metrics.Manager
 	PubSub         pubsub.Client
 

@@ -22,6 +22,7 @@ type HelloServerWrapper struct {
 	Container *container.Container
 	server    HelloServerWithGofr
 }
+
 func (h *HelloServerWrapper) SayHello(ctx context.Context, req *HelloRequest) (*HelloResponse, error) {
 	gctx := h.GetGofrContext(ctx, &HelloRequestWrapper{ctx: ctx, HelloRequest: req})
 

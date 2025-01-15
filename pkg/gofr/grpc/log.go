@@ -61,37 +61,34 @@ func LoggingInterceptor(logger Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		// Retrieve metadata from the incoming context
 		md, ok := metadata.FromIncomingContext(ctx)
+		if ok {
+			ctx = metadata.NewContext(ctx, md)
+		}
+
 		var parentSpanContext trace.SpanContext
 		var span trace.Span
 
-		if ok {
-			// Extract the serialized span context (if present) from metadata
-			spanContextStr := md.Get("parent-span-context")
-			if len(spanContextStr) > 0 {
-				parentSpanContext = spanContextFromString(spanContextStr[0])
-			}
-		}
-
-		// Check if a valid parent span context exists
-		if parentSpanContext.IsValid() {
-			// Create a new child span from the parent span context
-			tracectx := trace.ContextWithSpanContext(ctx, parentSpanContext)
-			ctx, span = otel.GetTracerProvider().
-				Tracer("gofr", trace.WithInstrumentationVersion("v0.1")).
-				Start(tracectx, info.FullMethod, trace.WithSpanKind(trace.SpanKindServer))
-		} else {
-			// Create a new root span
-			ctx, span = otel.GetTracerProvider().
-				Tracer("gofr", trace.WithInstrumentationVersion("v0.1")).
-				Start(ctx, info.FullMethod, trace.WithSpanKind(trace.SpanKindServer))
-
-			// Add the serialized span context to metadata for propagation
-			serializedSpanContext := spanContextToString(span.SpanContext())
-			md = metadata.Pairs("parent-span-context", serializedSpanContext)
-			ctx = metadata.NewOutgoingContext(ctx, md)
-		}
+		//tracectx := trace.ContextWithSpanContext(ctx, parentSpanContext)
+		//	ctx, span = otel.GetTracerProvider().
+		//		Tracer("gofr", trace.WithInstrumentationVersion("v0.1")).
+		//		Start(tracectx, info.FullMethod)
+		//} else {
+		//	// Create a new root span
+		//	ctx, span = otel.GetTracerProvider().
+		//		Tracer("gofr", trace.WithInstrumentationVersion("v0.1")).
+		//		Start(ctx, info.FullMethod, trace.WithSpanKind(trace.SpanKindServer))
+		//
+		//	// Add the serialized span context to metadata for propagation
+		//	serializedSpanContext := spanContextToString(span.SpanContext())
+		//	md = metadata.Pairs("parent-span-context", serializedSpanContext)
+		//	ctx = metadata.NewOutgoingContext(ctx, md)
+		//}
 
 		start := time.Now()
+
+		md, ok = metadata.FromOutgoingContext(ctx)
+		if ok {
+		}
 
 		// Call the handler with the updated context
 		resp, err := handler(ctx, req)
