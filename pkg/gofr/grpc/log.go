@@ -4,16 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"google.golang.org/grpc/metadata"
 	"io"
 	"math"
-	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
+
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -58,96 +57,63 @@ func (l RPCLog) String() string {
 }
 
 func LoggingInterceptor(logger Logger) grpc.UnaryServerInterceptor {
+	tracer := otel.GetTracerProvider().Tracer("gofr", trace.WithInstrumentationVersion("v0.1"))
+
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		// Retrieve metadata from the incoming context
-		md, ok := metadata.FromIncomingContext(ctx)
-		if ok {
-			ctx = metadata.NewContext(ctx, md)
+		// Extract metadata from the incoming context
+		md, _ := metadata.FromIncomingContext(ctx)
+
+		var spanContext trace.SpanContext
+
+		traceIDHex := getMetadataValue(md, "x-gofr-traceid")
+		spanIDHex := getMetadataValue(md, "x-gofr-spanid")
+
+		if traceIDHex != "" && spanIDHex != "" {
+			traceID, _ := trace.TraceIDFromHex(traceIDHex)
+			spanID, _ := trace.SpanIDFromHex(spanIDHex)
+
+			spanContext = trace.NewSpanContext(trace.SpanContextConfig{
+				TraceID:    traceID,
+				SpanID:     spanID,
+				TraceFlags: trace.FlagsSampled,
+				Remote:     true,
+			})
+
+			ctx = trace.ContextWithRemoteSpanContext(ctx, spanContext)
 		}
 
-		var parentSpanContext trace.SpanContext
-		var span trace.Span
+		// Start a new span
+		ctx, span := tracer.Start(ctx, info.FullMethod)
+		defer span.End()
 
-		//tracectx := trace.ContextWithSpanContext(ctx, parentSpanContext)
-		//	ctx, span = otel.GetTracerProvider().
-		//		Tracer("gofr", trace.WithInstrumentationVersion("v0.1")).
-		//		Start(tracectx, info.FullMethod)
-		//} else {
-		//	// Create a new root span
-		//	ctx, span = otel.GetTracerProvider().
-		//		Tracer("gofr", trace.WithInstrumentationVersion("v0.1")).
-		//		Start(ctx, info.FullMethod, trace.WithSpanKind(trace.SpanKindServer))
-		//
-		//	// Add the serialized span context to metadata for propagation
-		//	serializedSpanContext := spanContextToString(span.SpanContext())
-		//	md = metadata.Pairs("parent-span-context", serializedSpanContext)
-		//	ctx = metadata.NewOutgoingContext(ctx, md)
-		//}
+		startTime := time.Now()
 
-		start := time.Now()
-
-		md, ok = metadata.FromOutgoingContext(ctx)
-		if ok {
-		}
-
-		// Call the handler with the updated context
+		// Call the handler
 		resp, err := handler(ctx, req)
 
-		// Defer the logging and span end
-		defer func() {
-			l := RPCLog{
+		// Log the RPC call details
+		if logger != nil {
+			logEntry := RPCLog{
 				ID:           span.SpanContext().TraceID().String(),
-				StartTime:    start.Format("2006-01-02T15:04:05.999999999-07:00"),
-				ResponseTime: time.Since(start).Microseconds(),
+				StartTime:    startTime.Format(time.RFC3339Nano),
+				ResponseTime: time.Since(startTime).Microseconds(),
 				Method:       info.FullMethod,
+				//nolint:gosec // gRPC status codes are typically within the range that int32 can handle (0 to 16).
+				StatusCode: int32(status.Code(err)),
 			}
 
-			// Log the status code based on the error
-			if err != nil {
-				if statusErr, ok := status.FromError(err); ok {
-					l.StatusCode = int32(statusErr.Code())
-				}
-			} else {
-				l.StatusCode = int32(codes.OK)
-			}
-
-			if logger != nil {
-				logger.Info(l)
-			}
-
-			// End the span
-			span.End()
-		}()
+			logger.Info(logEntry)
+		}
 
 		return resp, err
 	}
 }
 
-// Helper function to serialize a SpanContext to a string
-func spanContextToString(sc trace.SpanContext) string {
-	return fmt.Sprintf("%s|%s", sc.TraceID().String(), sc.SpanID().String())
-}
-
-// Helper function to deserialize a SpanContext from a string
-func spanContextFromString(str string) trace.SpanContext {
-	parts := strings.Split(str, "|")
-	if len(parts) != 2 {
-		return trace.SpanContext{}
+// Helper function to safely extract a value from metadata.
+func getMetadataValue(md metadata.MD, key string) string {
+	if values, ok := md[key]; ok && len(values) > 0 {
+		return values[0]
 	}
 
-	traceID, err := trace.TraceIDFromHex(parts[0])
-	if err != nil {
-		return trace.SpanContext{}
-	}
-
-	spanID, err := trace.SpanIDFromHex(parts[1])
-	if err != nil {
-		return trace.SpanContext{}
-	}
-
-	return trace.NewSpanContext(trace.SpanContextConfig{
-		TraceID: traceID,
-		SpanID:  spanID,
-		Remote:  true,
-	})
+	return ""
 }
