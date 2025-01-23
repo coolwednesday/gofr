@@ -77,7 +77,7 @@ jobs:
       - name: Test
         run: |
           export APP_ENV=test
-          go test gofr.dev/examples/... -v -short -coverprofile packageWithpbgo.cov -coverpkg=gofr.dev/examples/...
+          go test gofr.dev/examples/... -v -coverprofile packageWithpbgo.cov -coverpkg=gofr.dev/examples/...
           grep -vE '^gofr\.dev\/.*\.pb\.go' packageWithpbgo.cov > profile.cov
           go tool cover -func profile.cov
 
@@ -114,7 +114,7 @@ jobs:
       - name: Test and Count Warnings
         run: |
           export APP_ENV=test
-          warning_count=$(go test gofr.dev/pkg/... -v -short -coverprofile package.cov -coverpkg=gofr.dev/pkg/... | tee /dev/tty | grep -c "WARNING" || true)
+          warning_count=$(go test gofr.dev/pkg/... -v -coverprofile package.cov -coverpkg=gofr.dev/pkg/... | tee /dev/tty | grep -c "WARNING" || true)
           grep -v '/mock_' package.cov > profile.cov
           codeCoverage=$(go tool cover -func profile.cov | awk '/total/ {print substr($3, 1, length($3)-1)}')
           echo "Warnings found: $warning_count"
