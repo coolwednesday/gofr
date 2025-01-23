@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	"time"
 )
 
 type HelloGoFrClient interface {
@@ -15,7 +16,7 @@ type HelloGoFrClient interface {
 
 type HelloClientWrapper struct {
 	client    HelloClient
-	Container *container.Container
+	container *container.Container
 	HelloGoFrClient
 }
 
@@ -38,7 +39,10 @@ func NewHelloGoFrClient(host string) (*HelloClientWrapper, error) {
 		client: res,
 	}, nil
 }
+
 func (h *HelloClientWrapper) SayHello(ctx *gofr.Context, req *HelloRequest) (*HelloResponse, error) {
+	transactionStartTime := time.Now()
+
 	span := ctx.Trace("gRPC-srv-call: SayHello")
 	defer span.End()
 
@@ -48,5 +52,13 @@ func (h *HelloClientWrapper) SayHello(ctx *gofr.Context, req *HelloRequest) (*He
 
 	ctx.Context = metadata.NewOutgoingContext(ctx.Context, md)
 
-	return h.client.SayHello(ctx.Context, req)
+	res, err := h.client.SayHello(ctx.Context, req)
+	if err != nil {
+		return nil, err
+	}
+
+	tranTime := time.Now().Sub(transactionStartTime).Milliseconds()
+
+	ctx.Metrics().RecordHistogram(ctx, "grpc", float64(tranTime))
+	return res, nil
 }
