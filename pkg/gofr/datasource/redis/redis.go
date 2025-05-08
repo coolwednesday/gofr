@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"os"
 	"strconv"
 	"time"
 
@@ -120,17 +121,25 @@ func getRedisConfig(c config.Config, logger datasource.Logger) *Config {
 
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 
-	if caCert := c.Get("REDIS_TLS_CA_CERT"); caCert != "" {
-		caCertPool := x509.NewCertPool()
-		if !caCertPool.AppendCertsFromPEM([]byte(caCert)) {
-			logger.Errorf("failed to append CA cert to pool")
+	if caCertPath := c.Get("REDIS_TLS_CA_CERT"); caCertPath != "" {
+		caCert, err := os.ReadFile(caCertPath)
+		if err != nil {
+			logger.Errorf("failed to read CA cert file: %v", err)
+		} else {
+			caCertPool := x509.NewCertPool()
+			if !caCertPool.AppendCertsFromPEM(caCert) {
+				logger.Errorf("failed to append CA cert to pool")
+			} else {
+				tlsConfig.RootCAs = caCertPool
+			}
 		}
-
-		tlsConfig.RootCAs = caCertPool
 	}
 
-	if certFile := c.Get("REDIS_TLS_CERT"); certFile != "" && c.Get("REDIS_TLS_KEY") != "" {
-		cert, err := tls.LoadX509KeyPair(certFile, c.Get("REDIS_TLS_KEY"))
+	// Load client cert and key from file paths
+	certPath := c.Get("REDIS_TLS_CERT")
+	keyPath := c.Get("REDIS_TLS_KEY")
+	if certPath != "" && keyPath != "" {
+		cert, err := tls.LoadX509KeyPair(certPath, keyPath)
 		if err != nil {
 			logger.Errorf("failed to load client cert/key pair: %v", err)
 		} else {
