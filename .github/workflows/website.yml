@@ -9,6 +9,7 @@ on:
     branches:
       - main
       - development
+      - website-release
 env:
   APP_NAME: gofr-website
   WEBSITE_REGISTRY: ghcr.io
@@ -76,7 +77,7 @@ jobs:
 
   deployment_stage:
     runs-on: ubuntu-latest
-    if: ${{ github.ref == 'refs/heads/development' }}
+    if: ${{ github.ref == 'refs/heads/website-release' }}
     name: 🚀 Deploy-Stage
     needs: dockerize
     container:
