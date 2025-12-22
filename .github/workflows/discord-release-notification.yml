@@ -34,7 +34,13 @@ jobs:
           # Function to send a message to Discord
           send_discord_message() {
             local content="$1"
-            echo "📤 Sending message (length: ${#content} chars)..."
+            local content_length=${#content}
+            echo "📤 Sending message (length: $content_length chars)..."
+            
+            # Check if content exceeds Discord limit
+            if [ $content_length -gt 2000 ]; then
+              echo "⚠️  WARNING: Message exceeds 2000 chars! Discord will reject it."
+            fi
             
             # Use jq to properly encode content as JSON
             local json_payload=$(echo "$content" | jq -Rs . | jq -c '{content: .}')
@@ -46,11 +52,15 @@ jobs:
               "$DISCORD_WEBHOOK")
             
             http_code=$(echo "$response" | tail -n1)
+            response_body=$(echo "$response" | head -n-1)
+            
             if [ "$http_code" = "204" ] || [ "$http_code" = "200" ]; then
               echo "✅ Message sent successfully (HTTP $http_code)"
+              return 0
             else
               echo "❌ Failed to send message (HTTP $http_code)"
-              echo "$response" | head -n-1
+              echo "Response: $response_body"
+              return 1
             fi
             echo ""
           }
@@ -76,9 +86,14 @@ jobs:
           
           # Discord's message limit is 2000 characters
           MAX_LENGTH=2000
-          CHUNK_SIZE=1950  # Use more space since we're not adding part indicators
+          CHUNK_SIZE=1950  # Default chunk size
+          
+          # Calculate header length and adjust first chunk size
+          header_length=${#header}
+          FIRST_CHUNK_SIZE=$((MAX_LENGTH - header_length - 50))  # 50 char safety buffer
           
           echo "📊 Full message length: ${#full_message} chars (limit: $MAX_LENGTH)"
+          echo "📏 Header length: $header_length chars, First chunk limit: $FIRST_CHUNK_SIZE chars"
           
           # Check if message exceeds Discord's limit
           if [ ${#full_message} -le $MAX_LENGTH ]; then
@@ -95,6 +110,7 @@ jobs:
             chunk_num=1
             current_chunk=""
             is_first_chunk=true
+            current_chunk_limit=$FIRST_CHUNK_SIZE  # Start with smaller limit for first chunk
             
             # Read line by line to preserve formatting
             while IFS= read -r line || [ -n "$line" ]; do
@@ -105,14 +121,15 @@ jobs:
                 test_chunk="$current_chunk"$'\n'"$line"
               fi
               
-              # If adding this line would exceed the limit
-              if [ ${#test_chunk} -gt $CHUNK_SIZE ]; then
+              # If adding this line would exceed the current chunk limit
+              if [ ${#test_chunk} -gt $current_chunk_limit ]; then
                 # Send current chunk if it has content
                 if [ -n "$current_chunk" ]; then
                   # Add header only to first chunk
                   if [ "$is_first_chunk" = true ]; then
                     send_discord_message "${header}${current_chunk}"
                     is_first_chunk=false
+                    current_chunk_limit=$CHUNK_SIZE  # Switch to normal chunk size after first
                   else
                     send_discord_message "$current_chunk"
                   fi
@@ -121,7 +138,7 @@ jobs:
                 fi
                 
                 # If the line itself is too long, split it by words
-                if [ ${#line} -gt $CHUNK_SIZE ]; then
+                if [ ${#line} -gt $current_chunk_limit ]; then
                   # Function to find last space character position (UTF-8 safe)
                   find_last_space_char_pos() {
                     local str="$1"
@@ -140,9 +157,9 @@ jobs:
                   # Split long line by spaces, trying to keep words together
                   remaining_line="$line"
                   MIN_CHUNK_SIZE=100  # Minimum chunk size to avoid very small chunks
-                  while [ ${#remaining_line} -gt $CHUNK_SIZE ]; do
+                  while [ ${#remaining_line} -gt $current_chunk_limit ]; do
                     # Find the last space within the chunk size (character-based search)
-                    chunk_part="${remaining_line:0:$CHUNK_SIZE}"
+                    chunk_part="${remaining_line:0:$current_chunk_limit}"
                     last_space_char_pos=$(find_last_space_char_pos "$chunk_part")
                     
                     if [ "$last_space_char_pos" -ge 0 ]; then
@@ -154,20 +171,21 @@ jobs:
                         # Remove leading space if present
                         remaining_line="${remaining_line# }"
                       else
-                        # Space too close to start, force break at CHUNK_SIZE
-                        chunk_part="${remaining_line:0:$CHUNK_SIZE}"
-                        remaining_line="${remaining_line:$CHUNK_SIZE}"
+                        # Space too close to start, force break at current limit
+                        chunk_part="${remaining_line:0:$current_chunk_limit}"
+                        remaining_line="${remaining_line:$current_chunk_limit}"
                       fi
                     else
                       # Force break if no space found
-                      chunk_part="${remaining_line:0:$CHUNK_SIZE}"
-                      remaining_line="${remaining_line:$CHUNK_SIZE}"
+                      chunk_part="${remaining_line:0:$current_chunk_limit}"
+                      remaining_line="${remaining_line:$current_chunk_limit}"
                     fi
                     
                     # Add header only to first chunk
                     if [ "$is_first_chunk" = true ]; then
                       send_discord_message "${header}${chunk_part}"
                       is_first_chunk=false
+                      current_chunk_limit=$CHUNK_SIZE  # Switch to normal chunk size after first
                     else
                       send_discord_message "$chunk_part"
                     fi
