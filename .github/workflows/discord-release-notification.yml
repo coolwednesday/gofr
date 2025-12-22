@@ -66,12 +66,14 @@ jobs:
           }
           
           # Create the release notification header with @everyone mention
-          # Make the heading a clickable link to the release
+          # Make the heading prominent and suppress embed preview
           VERSION="$RELEASE_TAG"
           
           # Use $'...' syntax for proper newline interpretation
+          # Wrap URL in <> to suppress Discord's embed preview
           header=$'@everyone\n\n'
-          header+=$'[🌟 **GoFr '"$VERSION"$' Released!** 🌟]('"$RELEASE_URL"$')\n\n'
+          header+=$'# 🌟 **GoFr '"$VERSION"$' Released!** 🌟\n'
+          header+=$'<'"$RELEASE_URL"$'>\n\n'
           
           # Get release notes
           release_notes="$RELEASE_BODY"
