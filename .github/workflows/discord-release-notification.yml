@@ -41,12 +41,11 @@ jobs:
           }
           
           # Create the release notification header with @everyone mention
-          # Extract version from tag (e.g., v1.50.1 from tag_name)
+          # Make the heading a clickable link to the release
           VERSION="$RELEASE_TAG"
           
           header="@everyone\n\n"
-          header="${header}🌟 **GoFr $VERSION Released!** 🌟\n\n"
-          header="${header}🔗 $RELEASE_URL\n\n"
+          header="${header}[🌟 **GoFr $VERSION Released!** 🌟]($RELEASE_URL)\n\n"
           
           # Get release notes
           release_notes="$RELEASE_BODY"
