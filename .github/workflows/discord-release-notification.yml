@@ -79,6 +79,19 @@ jobs:
           # If release notes are empty, use a default message
           if [ -z "$release_notes" ] || [ "$release_notes" = "null" ]; then
             release_notes="No release notes provided."
+          else
+            # Remove the first H1 or H2 heading from release notes (it's redundant)
+            # This removes lines starting with # or ## (with optional spaces)
+            release_notes=$(echo "$release_notes" | sed '1{/^##\? /d;}')
+            # Also remove any leading empty lines
+            release_notes=$(echo "$release_notes" | sed '/./,$!d')
+            
+            # Convert markdown headers to Discord-friendly format
+            # Discord doesn't render ### and #### well, so convert to bold
+            # ### Header -> **Header**
+            release_notes=$(echo "$release_notes" | sed 's/^### \(.*\)$/\n**\1**/g')
+            # #### Header -> **Header**
+            release_notes=$(echo "$release_notes" | sed 's/^#### \(.*\)$/\n**\1**/g')
           fi
           
           # Combine header and release notes
