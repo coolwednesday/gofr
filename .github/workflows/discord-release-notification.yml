@@ -40,11 +40,13 @@ jobs:
               "$DISCORD_WEBHOOK"
           }
           
-          # Create the release notification header
-          header="🚀 **New Release: $RELEASE_NAME**\n\n"
-          header="${header}📦 **Tag:** \`$RELEASE_TAG\`\n"
-          header="${header}🔗 **Link:** $RELEASE_URL\n\n"
-          header="${header}---\n\n"
+          # Create the release notification header with @everyone mention
+          # Extract version from tag (e.g., v1.50.1 from tag_name)
+          VERSION="$RELEASE_TAG"
+          
+          header="@everyone\n\n"
+          header="${header}🌟 **GoFr $VERSION Released!** 🌟\n\n"
+          header="${header}🔗 $RELEASE_URL\n\n"
           
           # Get release notes
           release_notes="$RELEASE_BODY"
@@ -59,16 +61,13 @@ jobs:
           
           # Discord's message limit is 2000 characters
           MAX_LENGTH=2000
-          CHUNK_SIZE=1800  # Reserve space for part indicators
+          CHUNK_SIZE=1950  # Use more space since we're not adding part indicators
           
           # Check if message exceeds Discord's limit
           if [ ${#full_message} -le $MAX_LENGTH ]; then
             # Send as single message
             send_discord_message "$full_message"
           else
-            # Send header first (it should be short enough)
-            send_discord_message "$header"
-            
             # Split release notes into chunks
             # Use a temporary file to handle the splitting properly
             temp_file=$(mktemp)
@@ -76,6 +75,7 @@ jobs:
             
             chunk_num=1
             current_chunk=""
+            is_first_chunk=true
             
             # Read line by line to preserve formatting
             while IFS= read -r line || [ -n "$line" ]; do
@@ -90,8 +90,13 @@ jobs:
               if [ ${#test_chunk} -gt $CHUNK_SIZE ]; then
                 # Send current chunk if it has content
                 if [ -n "$current_chunk" ]; then
-                  chunk_header="📝 **Release Notes (Part $chunk_num):**\n\n"
-                  send_discord_message "${chunk_header}${current_chunk}"
+                  # Add header only to first chunk
+                  if [ "$is_first_chunk" = true ]; then
+                    send_discord_message "${header}${current_chunk}"
+                    is_first_chunk=false
+                  else
+                    send_discord_message "$current_chunk"
+                  fi
                   chunk_num=$((chunk_num + 1))
                   sleep 0.5  # Small delay to avoid rate limiting
                 fi
@@ -140,8 +145,13 @@ jobs:
                       remaining_line="${remaining_line:$CHUNK_SIZE}"
                     fi
                     
-                    chunk_header="📝 **Release Notes (Part $chunk_num):**\n\n"
-                    send_discord_message "${chunk_header}${chunk_part}"
+                    # Add header only to first chunk
+                    if [ "$is_first_chunk" = true ]; then
+                      send_discord_message "${header}${chunk_part}"
+                      is_first_chunk=false
+                    else
+                      send_discord_message "$chunk_part"
+                    fi
                     chunk_num=$((chunk_num + 1))
                     sleep 0.5
                   done
@@ -161,8 +171,12 @@ jobs:
             
             # Send remaining chunk
             if [ -n "$current_chunk" ]; then
-              chunk_header="📝 **Release Notes (Part $chunk_num):**\n\n"
-              send_discord_message "${chunk_header}${current_chunk}"
+              # Add header only to first chunk
+              if [ "$is_first_chunk" = true ]; then
+                send_discord_message "${header}${current_chunk}"
+              else
+                send_discord_message "$current_chunk"
+              fi
             fi
             
             # Clean up
