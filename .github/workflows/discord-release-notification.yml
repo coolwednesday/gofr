@@ -86,11 +86,11 @@ jobs:
             # Also remove any leading empty lines
             release_notes=$(echo "$release_notes" | sed '/./,$!d')
             
-            # Convert markdown headers to Discord-friendly format
-            # Discord doesn't render ### and #### well, so convert to bold
-            # ### Header -> **Header**
-            release_notes=$(echo "$release_notes" | sed 's/^### \(.*\)$/\n**\1**/g')
-            # #### Header -> **Header**
+            # Convert markdown headers to Discord-friendly format with proper hierarchy
+            # Discord doesn't render ### and #### well, so convert with visual distinction
+            # ### Header -> **__Header__** (bold + underline for main sections)
+            release_notes=$(echo "$release_notes" | sed 's/^### \(.*\)$/\n**__\1__**/g')
+            # #### Header -> **Header** (just bold for sub-sections)
             release_notes=$(echo "$release_notes" | sed 's/^#### \(.*\)$/\n**\1**/g')
           fi
           
