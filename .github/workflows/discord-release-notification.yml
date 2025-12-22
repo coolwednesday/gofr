@@ -34,18 +34,34 @@ jobs:
           # Function to send a message to Discord
           send_discord_message() {
             local content="$1"
-            curl -H "Content-Type: application/json" \
+            echo "📤 Sending message (length: ${#content} chars)..."
+            
+            # Use jq to properly encode content as JSON
+            local json_payload=$(echo "$content" | jq -Rs . | jq -c '{content: .}')
+            
+            # Send to Discord and capture response
+            response=$(curl -s -w "\n%{http_code}" -H "Content-Type: application/json" \
               -X POST \
-              -d "{\"content\": $(echo "$content" | jq -Rs .)}" \
-              "$DISCORD_WEBHOOK"
+              -d "$json_payload" \
+              "$DISCORD_WEBHOOK")
+            
+            http_code=$(echo "$response" | tail -n1)
+            if [ "$http_code" = "204" ] || [ "$http_code" = "200" ]; then
+              echo "✅ Message sent successfully (HTTP $http_code)"
+            else
+              echo "❌ Failed to send message (HTTP $http_code)"
+              echo "$response" | head -n-1
+            fi
+            echo ""
           }
           
           # Create the release notification header with @everyone mention
           # Make the heading a clickable link to the release
           VERSION="$RELEASE_TAG"
           
-          header="@everyone\n\n"
-          header="${header}[🌟 **GoFr $VERSION Released!** 🌟]($RELEASE_URL)\n\n"
+          # Use $'...' syntax for proper newline interpretation
+          header=$'@everyone\n\n'
+          header+=$'[🌟 **GoFr '"$VERSION"$' Released!** 🌟]('"$RELEASE_URL"$')\n\n'
           
           # Get release notes
           release_notes="$RELEASE_BODY"
@@ -62,11 +78,15 @@ jobs:
           MAX_LENGTH=2000
           CHUNK_SIZE=1950  # Use more space since we're not adding part indicators
           
+          echo "📊 Full message length: ${#full_message} chars (limit: $MAX_LENGTH)"
+          
           # Check if message exceeds Discord's limit
           if [ ${#full_message} -le $MAX_LENGTH ]; then
             # Send as single message
+            echo "✉️  Sending as single message..."
             send_discord_message "$full_message"
           else
+            echo "✂️  Message exceeds limit, splitting into chunks..."
             # Split release notes into chunks
             # Use a temporary file to handle the splitting properly
             temp_file=$(mktemp)
@@ -82,7 +102,7 @@ jobs:
               if [ -z "$current_chunk" ]; then
                 test_chunk="$line"
               else
-                test_chunk="$current_chunk\n$line"
+                test_chunk="$current_chunk"$'\n'"$line"
               fi
               
               # If adding this line would exceed the limit
@@ -163,7 +183,7 @@ jobs:
                 if [ -z "$current_chunk" ]; then
                   current_chunk="$line"
                 else
-                  current_chunk="$current_chunk\n$line"
+                  current_chunk="$current_chunk"$'\n'"$line"
                 fi
               fi
             done < "$temp_file"
