@@ -73,7 +73,7 @@ jobs:
           # Wrap URL in <> to suppress Discord's embed preview
           header=$'@everyone\n\n'
           header+=$'# 🌟 **GoFr '"$VERSION"$' Released!** 🌟\n'
-          header+=$'<'"$RELEASE_URL"$'>\n\n'
+          header+=$'<'"$RELEASE_URL"$'>\n'
           
           # Get release notes
           release_notes="$RELEASE_BODY"
@@ -90,10 +90,10 @@ jobs:
             
             # Convert markdown headers to Discord-friendly format with proper hierarchy
             # Discord doesn't render ### and #### well, so convert with visual distinction
-            # ### Header -> **__Header__** (bold + underline for main sections)
-            release_notes=$(echo "$release_notes" | sed 's/^### \(.*\)$/\n**__\1__**/g')
-            # #### Header -> **Header** (just bold for sub-sections)
-            release_notes=$(echo "$release_notes" | sed 's/^#### \(.*\)$/\n**\1**/g')
+            # ### Header -> **__Header__** (bold + underline for main sections) with space after
+            release_notes=$(echo "$release_notes" | sed 's/^### \(.*\)$/\n**__\1__**\n/g')
+            # #### Header -> **Header** (just bold for sub-sections) with space after
+            release_notes=$(echo "$release_notes" | sed 's/^#### \(.*\)$/\n**\1**\n/g')
           fi
           
           # Combine header and release notes
